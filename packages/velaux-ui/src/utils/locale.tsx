@@ -1,6 +1,7 @@
 import { getLanguage } from '../utils/common';
 const localeData = {
   en: {
+    momentLocale: 'en',
     Timeline: {
       expand: 'Expand',
       fold: 'Fold',
@@ -82,8 +83,49 @@ const localeData = {
     Tab: {
       closeAriaLabel: 'Close',
     },
+    DatePicker: {
+      placeholder: 'Select Date',
+      datetimePlaceholder: 'Select Date and Time',
+      monthPlaceholder: 'Select Month',
+      yearPlaceholder: 'Select Year',
+      weekPlaceholder: 'Select Week',
+      quarterPlaceholder: 'Select Quarter',
+      startPlaceholder: 'Start Date',
+      endPlaceholder: 'End Date',
+      timeStartPlaceholder: 'Start Time',
+      timeEndPlaceholder: 'End Time',
+      ok: 'OK',
+      clear: 'Clear',
+      now: 'Now',
+      selectTime: 'Select Time',
+      selectDate: 'Select Date',
+    },
+    TimePicker: {
+      placeholder: 'Select Time',
+      clear: 'Clear',
+      hour: 'H',
+      minute: 'M',
+      second: 'S',
+    },
+    Calendar: {
+      today: 'Today',
+      now: 'Now',
+      ok: 'OK',
+      clear: 'Clear',
+      month: 'Month',
+      year: 'Year',
+      prevYear: 'Previous Year',
+      nextYear: 'Next Year',
+      prevMonth: 'Previous Month',
+      nextMonth: 'Next Month',
+      prevDecade: 'Previous Decade',
+      nextDecade: 'Next Decade',
+      yearSelectAriaLabel: 'Select Year',
+      monthSelectAriaLabel: 'Select Month',
+    },
   },
   ja: {
+    momentLocale: 'ja',
     Timeline: {
       expand: '展開',
       fold: '折りたたむ',
@@ -165,8 +207,49 @@ const localeData = {
     Tab: {
       closeAriaLabel: '閉じる',
     },
+    DatePicker: {
+      placeholder: '日付を選択',
+      datetimePlaceholder: '日時を選択',
+      monthPlaceholder: '月を選択',
+      yearPlaceholder: '年を選択',
+      weekPlaceholder: '週を選択',
+      quarterPlaceholder: '四半期を選択',
+      startPlaceholder: '開始日',
+      endPlaceholder: '終了日',
+      timeStartPlaceholder: '開始時刻',
+      timeEndPlaceholder: '終了時刻',
+      ok: 'OK',
+      clear: 'クリア',
+      now: '現在',
+      selectTime: '時刻を選択',
+      selectDate: '日付を選択',
+    },
+    TimePicker: {
+      placeholder: '時刻を選択',
+      clear: 'クリア',
+      hour: '時',
+      minute: '分',
+      second: '秒',
+    },
+    Calendar: {
+      today: '今日',
+      now: '現在',
+      ok: 'OK',
+      clear: 'クリア',
+      month: '月',
+      year: '年',
+      prevYear: '前年',
+      nextYear: '翌年',
+      prevMonth: '前月',
+      nextMonth: '翌月',
+      prevDecade: '前の10年',
+      nextDecade: '次の10年',
+      yearSelectAriaLabel: '年を選択',
+      monthSelectAriaLabel: '月を選択',
+    },
   },
   zh: {
+    momentLocale: 'zh-cn',
     Timeline: {
       expand: '展开',
       fold: '收起',
@@ -263,8 +346,8 @@ class SingletonLocal {
     this.local = value;
   }
   getLocal() {
-    return () => {
-      const language = getLanguage();
+    return (lang?: string) => {
+      const language = lang || getLanguage();
       return this.local[language] ?? this.local.en;
     };
   }

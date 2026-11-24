@@ -74,7 +74,13 @@ install-addon:
 	kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=vela-workflow -n vela-system --timeout=600s
 
 start-addon-mock-server:
-	go run ./e2e-test/addon &
+	go build -o /tmp/vela-addon-mock-server ./e2e-test/addon
+	nohup /tmp/vela-addon-mock-server >/tmp/vela-addon-mock-server.log 2>&1 </dev/null &
+	@for i in $$(seq 1 30); do \
+		if curl -fsS http://127.0.0.1:9098/helm/index.yaml >/dev/null 2>&1; then exit 0; fi; \
+		sleep 1; \
+	done; \
+	echo "addon mock server failed to start:" >&2; cat /tmp/vela-addon-mock-server.log >&2; exit 1
 
 load-image:
 	k3d image import oamdev/velaux:latest || { echo >&2 "kind not installed or error loading image: $(VELA_CORE_TEST_IMAGE)"; exit 1; }

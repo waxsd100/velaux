@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - release-*
+      - feat/kubevela-1.11
     tags:
       - v*
   workflow_dispatch: { }
@@ -103,12 +104,12 @@ jobs:
   server-e2e-tests:
     # Branch protection requires this check by name. A job's name cannot read
     # env, so the version is repeated here: bump both, and the required check.
-    name: server-e2e-tests (v1.26)
+    name: server-e2e-tests (v1.31)
     runs-on: ubuntu-22.04
     needs: [ detect-noop ]
     if: needs.detect-noop.outputs.noop != 'true'
     env:
-      K8S_VERSION: v1.26
+      K8S_VERSION: v1.31
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-server-e2e-tests
       cancel-in-progress: true
@@ -144,7 +145,7 @@ jobs:
       - name: Calculate K3d args
         run: |
           EGRESS_ARG=""
-          if [[ "$K8S_VERSION" == v1.26 ]]; then
+          if [[ "$K8S_VERSION" == v1.26 || "$K8S_VERSION" == v1.31 ]]; then
             EGRESS_ARG="--k3s-arg --egress-selector-mode=disabled@server:0"
           fi
           echo "EGRESS_ARG=${EGRESS_ARG}" >> $GITHUB_ENV 
@@ -189,6 +190,18 @@ jobs:
       - name: Test addon enable
         run: |
           make enable-addon
+
+      - name: Dump cluster state on failure
+        if: failure()
+        run: |
+          kubectl get nodes -o wide || true
+          kubectl get pods -A -o wide || true
+          kubectl -n vela-system get svc,endpoints || true
+          kubectl -n vela-system describe deployment kubevela-vela-core || true
+          kubectl -n vela-system logs -l app.kubernetes.io/name=vela-core --tail=200 || true
+          kubectl get validatingwebhookconfigurations -o wide || true
+          kubectl get events -A --sort-by=.lastTimestamp --field-selector type!=Normal || true
+          helm list -A || true
 
       - name: Upload coverage report
         uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673

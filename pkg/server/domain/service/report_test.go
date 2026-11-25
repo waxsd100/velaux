@@ -42,6 +42,7 @@ import (
 	"github.com/oam-dev/kubevela/apis/core.oam.dev/v1beta1"
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 
+	"github.com/kubevela/velaux/pkg/features"
 	"github.com/kubevela/velaux/pkg/server/domain/model"
 	"github.com/kubevela/velaux/pkg/server/domain/report"
 	"github.com/kubevela/velaux/pkg/server/infrastructure/datastore"
@@ -180,7 +181,7 @@ func newReportFixture(t *testing.T, serverFails bool) *reportFixture {
 			}
 			if u, ok := list.(interface{ GetKind() string }); ok && u.GetKind() == "DeploymentList" {
 				who := []string{"(VelaUX)"}
-				if info, ok := request.UserFrom(ctx); ok {
+				if info, ok := request.UserFrom(ctx); ok && info != nil {
 					who = append([]string{info.GetName()}, info.GetGroups()...)
 				}
 				fx.listedAs = append(fx.listedAs, who)
@@ -259,14 +260,27 @@ func TestReportCatalogue(t *testing.T) {
 }
 
 func TestReportsSeeOnlyTheirProject(t *testing.T) {
-	fx := newReportFixture(t, false)
+	t.Run("impersonates the project when EnableImpersonation is enabled", func(t *testing.T) {
+		require.NoError(t, features.APIServerMutableFeatureGate.Set("EnableImpersonation=true"))
+		t.Cleanup(func() { _ = features.APIServerMutableFeatureGate.Set("EnableImpersonation=false") })
 
-	res := fx.run(t, "shop", "deployments", nil)
-	assert.Equal(t, []interface{}{"storefront-web"}, column(res, "name"), "only shop's namespaces")
-	assert.Equal(t, [][]string{{"alice", "kubevela:project:shop", "kubevela:client"}}, fx.listedAs, "listed as the project")
+		fx := newReportFixture(t, false)
+		res := fx.run(t, "shop", "deployments", nil)
+		assert.Equal(t, []interface{}{"storefront-web"}, column(res, "name"), "only shop's namespaces")
+		assert.Equal(t, [][]string{{"alice", "kubevela:project:shop", "kubevela:client"}}, fx.listedAs, "listed as the project")
 
-	assert.Equal(t, []interface{}{"storefront-web", "storefront-web"}, column(fx.run(t, "shop", "components", nil), "component"))
-	assert.Equal(t, []interface{}{"secret"}, column(fx.run(t, "other", "apps", nil), "name"))
+		assert.Equal(t, []interface{}{"storefront-web", "storefront-web"}, column(fx.run(t, "shop", "components", nil), "component"))
+		assert.Equal(t, []interface{}{"secret"}, column(fx.run(t, "other", "apps", nil), "name"))
+	})
+
+	t.Run("lists as VelaUX without impersonation when EnableImpersonation is disabled", func(t *testing.T) {
+		require.NoError(t, features.APIServerMutableFeatureGate.Set("EnableImpersonation=false"))
+
+		fx := newReportFixture(t, false)
+		res := fx.run(t, "shop", "deployments", nil)
+		assert.Equal(t, []interface{}{"storefront-web"}, column(res, "name"), "only shop's namespaces")
+		assert.Equal(t, [][]string{{"(VelaUX)"}}, fx.listedAs, "listed as VelaUX without impersonation")
+	})
 }
 
 func TestRunReport(t *testing.T) {

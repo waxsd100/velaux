@@ -34,6 +34,7 @@ import (
 
 	common2 "github.com/oam-dev/kubevela/pkg/utils/common"
 
+	"github.com/kubevela/velaux/pkg/features"
 	"github.com/kubevela/velaux/pkg/server/domain/model"
 	"github.com/kubevela/velaux/pkg/server/infrastructure/datastore"
 	"github.com/kubevela/velaux/pkg/server/infrastructure/datastore/kubeapi"
@@ -83,7 +84,7 @@ func velaQLFixture(t *testing.T, reads *[]string) *velaQLServiceImpl {
 				return c.Get(ctx, key, obj, opts...)
 			}
 			as := "velaux"
-			if u, ok := request.UserFrom(ctx); ok {
+			if u, ok := request.UserFrom(ctx); ok && u != nil {
 				as = u.GetGroups()[0]
 				if key.Namespace != "shop" && key.Namespace != "shop-prod" {
 					*reads = append(*reads, key.Namespace+"/"+key.Name+":"+as+":refused")
@@ -107,6 +108,9 @@ func velaQLFixture(t *testing.T, reads *[]string) *velaQLServiceImpl {
 }
 
 func TestQueryViewInProject(t *testing.T) {
+	require.NoError(t, features.APIServerMutableFeatureGate.Set("EnableImpersonation=true"))
+	t.Cleanup(func() { _ = features.APIServerMutableFeatureGate.Set("EnableImpersonation=false") })
+
 	var reads []string
 	v := velaQLFixture(t, &reads)
 	ctx := utils.WithUsername(context.Background(), "shop-dev")
@@ -145,6 +149,19 @@ func TestQueryViewInProject(t *testing.T) {
 		_, err := v.QueryView(ctx, `pod-view{namespace=shop-prod,name=web}.status`, "nope")
 		assert.Equal(t, bcode.ErrProjectIsNotExist, err)
 	})
+}
+
+func TestQueryViewInProjectWithoutImpersonation(t *testing.T) {
+	require.NoError(t, features.APIServerMutableFeatureGate.Set("EnableImpersonation=false"))
+
+	var reads []string
+	v := velaQLFixture(t, &reads)
+	ctx := utils.WithUsername(context.Background(), "shop-dev")
+
+	resp, err := v.QueryView(ctx, `only-global{namespace=shop-prod,name=web}.status`, "shop")
+	require.NoError(t, err)
+	assert.Equal(t, "global", (*resp)["scope"])
+	assert.Equal(t, []string{"shop/only-global:velaux", "vela-system/only-global:velaux", "shop-prod/web:velaux"}, reads)
 }
 
 func TestQueryViewForEveryProject(t *testing.T) {

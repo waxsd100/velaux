@@ -40,6 +40,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/multicluster"
 
+	"github.com/kubevela/velaux/pkg/features"
 	"github.com/kubevela/velaux/pkg/server/domain/model"
 	"github.com/kubevela/velaux/pkg/server/domain/report"
 	"github.com/kubevela/velaux/pkg/server/infrastructure/datastore"
@@ -287,11 +288,13 @@ func (r *reportServiceImpl) projectSource(ctx context.Context, project string) (
 	sort.Slice(s.namespaces, func(i, j int) bool {
 		return s.namespaces[i].cluster+s.namespaces[i].namespace < s.namespaces[j].cluster+s.namespaces[j].namespace
 	})
-	name, _ := utils.UsernameFrom(ctx)
-	if name == "" {
-		name = user.Anonymous
+	if features.APIServerFeatureGate.Enabled(features.APIServerEnableImpersonation) {
+		name, _ := utils.UsernameFrom(ctx)
+		if name == "" {
+			name = user.Anonymous
+		}
+		s.as = &user.DefaultInfo{Name: name, Groups: []string{utils.KubeVelaProjectGroupPrefix + project, auth.KubeVelaClientGroup}}
 	}
-	s.as = &user.DefaultInfo{Name: name, Groups: []string{utils.KubeVelaProjectGroupPrefix + project, auth.KubeVelaClientGroup}}
 	return s, nil
 }
 
@@ -305,8 +308,8 @@ type projectSource struct {
 	project    string
 	apps       []*model.Application
 	namespaces []clusterNamespace
-	// as is who a report's Kubernetes reads run as: the user, in the project's
-	// group, whatever VelaUX's impersonation gate says.
+	// as is who a report's Kubernetes reads run as when EnableImpersonation is
+	// enabled: the user, in the project's group; nil when impersonation is off.
 	as  user.Info
 	now func() time.Time
 }

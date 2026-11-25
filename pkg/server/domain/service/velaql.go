@@ -35,6 +35,7 @@ import (
 	"github.com/oam-dev/kubevela/pkg/auth"
 	"github.com/oam-dev/kubevela/pkg/velaql"
 
+	"github.com/kubevela/velaux/pkg/features"
 	"github.com/kubevela/velaux/pkg/server/domain/model"
 	"github.com/kubevela/velaux/pkg/server/domain/query"
 	"github.com/kubevela/velaux/pkg/server/infrastructure/datastore"
@@ -62,10 +63,11 @@ func NewVelaQLService() VelaQLService {
 	return &velaQLServiceImpl{}
 }
 
-// QueryView runs a view. With a project, it reads as the signed-in user in that
-// project, through query.Guard, and a view in the project's namespace wins over
-// a global one of its name. Without one, which only admins may ask for, it
-// reads as VelaUX. Either way the view only reads.
+// QueryView runs a view. With a project, it reads through query.Guard (and, when
+// EnableImpersonation is enabled, as the signed-in user in that project), and a
+// view in the project's namespace wins over a global one of its name. Without
+// one, which only admins may ask for, it reads as VelaUX. Either way the view
+// only reads.
 func (v *velaQLServiceImpl) QueryView(ctx context.Context, velaQL, project string) (*apis.VelaQLViewResponse, error) {
 	q, err := velaql.ParseVelaQL(velaQL)
 	if err != nil {
@@ -82,10 +84,12 @@ func (v *velaQLServiceImpl) QueryView(ctx context.Context, velaQL, project strin
 		if err != nil {
 			return nil, err
 		}
-		if name == "" {
-			name = user.Anonymous
+		if features.APIServerFeatureGate.Enabled(features.APIServerEnableImpersonation) {
+			if name == "" {
+				name = user.Anonymous
+			}
+			ctx = request.WithUser(ctx, &user.DefaultInfo{Name: name, Groups: []string{utils.KubeVelaProjectGroupPrefix + project, auth.KubeVelaClientGroup}})
 		}
-		ctx = request.WithUser(ctx, &user.DefaultInfo{Name: name, Groups: []string{utils.KubeVelaProjectGroupPrefix + project, auth.KubeVelaClientGroup}})
 		cli = query.Guard(v.ServerKubeClient, namespaces)
 		viewNamespace = namespaces[0]
 	}

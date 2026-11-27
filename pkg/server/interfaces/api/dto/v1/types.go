@@ -1621,6 +1621,8 @@ type SystemInfoResponse struct {
 	SystemInfo
 	SystemVersion SystemVersion `json:"systemVersion"`
 	StatisticInfo StatisticInfo `json:"statisticInfo,omitempty"`
+	// Capabilities are what the cluster's KubeVela controller can do.
+	Capabilities ControllerCapabilities `json:"capabilities"`
 }
 
 // SystemInfo system info
@@ -1659,6 +1661,17 @@ type SystemVersion struct {
 	GitVersion  string `json:"gitVersion"`
 }
 
+// ControllerCapabilities are the features of the cluster's KubeVela controller
+// that VelaUX offers only where it has them.
+type ControllerCapabilities struct {
+	// VelaCoreVersion is the controller's image tag, empty when it cannot be read.
+	VelaCoreVersion string `json:"velaCoreVersion,omitempty"`
+	// ReconcileInterval is whether it honours an Application's resync interval.
+	ReconcileInterval bool `json:"reconcileInterval"`
+	// WorkflowRestart is whether it restarts an Application's workflow on request.
+	WorkflowRestart bool `json:"workflowRestart"`
+}
+
 // ChartVersionListResponse contains helm chart versions info
 type ChartVersionListResponse struct {
 	Versions repo.ChartVersions `json:"versions"`
@@ -1689,12 +1702,12 @@ type RefreshTokenResponse struct {
 	RefreshToken string `json:"refreshToken"`
 }
 
-// DexConfigResponse is the response of dex config
+// DexConfigResponse is the response of dex config. The login page reads it before anyone signs
+// in, so it holds only what the browser sees in the authorize redirect, never the client secret.
 type DexConfigResponse struct {
-	ClientID     string `json:"clientID"`
-	ClientSecret string `json:"clientSecret"`
-	RedirectURL  string `json:"redirectURL"`
-	Issuer       string `json:"issuer"`
+	ClientID    string `json:"clientID"`
+	RedirectURL string `json:"redirectURL"`
+	Issuer      string `json:"issuer"`
 }
 
 // DetailUserResponse is the response of user detail
@@ -2213,12 +2226,14 @@ type PluginDTO struct {
 	ID   string           `json:"id"`
 	Type pluginTypes.Type `json:"type"`
 	// there are four sub types in the definition plugin type, includes: component, trait, policy ,and workflow-step.
-	SubType       string                  `json:"subType"`
-	Name          string                  `json:"name"`
-	Info          pluginTypes.Info        `json:"info"`
-	Includes      []*pluginTypes.Includes `json:"includes"`
-	Category      string                  `json:"category"`
-	DefaultNavURL string                  `json:"defaultNavURL"`
+	SubType string `json:"subType"`
+	// Definitions lists the definitions whose properties form a definition plugin replaces.
+	Definitions   []pluginTypes.DefinitionRef `json:"definitions,omitempty"`
+	Name          string                      `json:"name"`
+	Info          pluginTypes.Info            `json:"info"`
+	Includes      []*pluginTypes.Includes     `json:"includes"`
+	Category      string                      `json:"category"`
+	DefaultNavURL string                      `json:"defaultNavURL"`
 	// SystemJS fields
 	Module  string `json:"module"`
 	BaseURL string `json:"baseURL"`
@@ -2389,12 +2404,22 @@ type Customisation struct {
 	SidebarColor string `json:"sidebarColor,omitempty"`
 	// AccentColor marks the current page and highlights, a hex colour.
 	AccentColor string `json:"accentColor,omitempty"`
+	// ShowComingSoon lists the menu items not built yet, greyed out; they are
+	// hidden unless it is set.
+	ShowComingSoon bool `json:"showComingSoon,omitempty"`
 	// Terminology renames the UI's words, keyed by the word as the UI writes it
 	// in the singular: Application, Environment, Cluster.
 	Terminology map[string]Term `json:"terminology,omitempty"`
 	// TerminologyError says why the stored terminology was ignored, where it
 	// cannot be read; it is never stored.
 	TerminologyError string `json:"terminologyError,omitempty"`
+	// Warnings say which other stored values were ignored, and why; they are
+	// never stored.
+	Warnings []string `json:"warnings,omitempty"`
+	// ResourceVersion is the stored ConfigMap's version as read. A save that
+	// sends it is refused if the ConfigMap has changed since; one without it
+	// saves regardless.
+	ResourceVersion string `json:"resourceVersion,omitempty"`
 }
 
 // Term is the singular and plural a renamed word takes.

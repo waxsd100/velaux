@@ -35,6 +35,7 @@ import (
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -140,7 +141,12 @@ func (d *definitionServiceImpl) ListDefinitions(ctx context.Context, ops Definit
 	}
 	defs.SetAPIVersion(version)
 	defs.SetKind(kind)
-	return d.listDefinitions(ctx, defs, kind, ops)
+	list, err := d.listDefinitions(ctx, defs, kind, ops)
+	// A KubeVela before 1.12 has no SourceDefinition CRD, so no sources.
+	if meta.IsNoMatchError(err) && kind == kindSourceDefinition {
+		return nil, nil
+	}
+	return list, err
 }
 
 func (d *definitionServiceImpl) listDefinitions(ctx context.Context, list *unstructured.UnstructuredList, kind string, ops DefinitionQueryOption) ([]*apisv1.DefinitionBase, error) {
@@ -148,6 +154,12 @@ func (d *definitionServiceImpl) listDefinitions(ctx context.Context, list *unstr
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
 				Key:      types.LabelDefinitionDeprecated,
+				Operator: metav1.LabelSelectorOpDoesNotExist,
+			},
+			// Modules are in development, and KubeVela refuses a module's type by its
+			// definition's name (it takes module/version/name), so they are not offered.
+			{
+				Key:      types.LabelDefinitionModule,
 				Operator: metav1.LabelSelectorOpDoesNotExist,
 			},
 		},
@@ -689,7 +701,7 @@ func renderUIParameter(key, label string, property *openapi3.SchemaRef, required
 	parameter.Validate = &schema.Validate{}
 	parameter.Validate.DefaultValue = property.Value.Default
 	for _, enum := range property.Value.Enum {
-		parameter.Validate.Options = append(parameter.Validate.Options, schema.Option{Label: RenderLabel(enum), Value: enum})
+		parameter.Validate.Options = append(parameter.Validate.Options, schema.Option{Label: optionLabel(enum, property.Value.Default), Value: enum})
 	}
 	parameter.JSONKey = key
 	parameter.Description = property.Value.Description
@@ -735,6 +747,18 @@ func RenderLabel(source interface{}) string {
 	default:
 		return stringtools.Capitalize(fmt.Sprintf("%v", v))
 	}
+}
+
+// optionLabel is the label of an enum choice. An empty string is a real choice (the
+// storage trait's emptyDir medium, for one), so it is labelled rather than left blank.
+func optionLabel(value, defaultValue interface{}) string {
+	if value != "" {
+		return RenderLabel(value)
+	}
+	if defaultValue == "" {
+		return "Default"
+	}
+	return "(empty)"
 }
 
 // policyScope classifies a policy as KubeVela does, for its policy's type.
